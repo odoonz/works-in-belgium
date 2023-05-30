@@ -28,8 +28,8 @@ class ResCompany(models.Model):
             return start_date, end_date
         icp = self.env["ir.config_parameter"].sudo()
         vat_year_end = icp.get_param("account_reports.vat_year_end")
-        if vat_period_start:
-            month, day = vat_period_start.split("-")
+        if vat_year_end:
+            month, day = vat_year_end.split("-")
             start_date, _date_to = date_utils.get_fiscal_year(
                 date, day=int(day), month=int(month))
         else:
