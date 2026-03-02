@@ -1,7 +1,7 @@
 # Autofill please
 {
     "name": "Account Tax WTF",
-    "version": "18.0.1.0.0",
+    "version": "19.0.1.0.0",
     "summary": "Unfuck Edited Taxes",
     "author": "Graeme Gellatly",
     "website": "https://github.com/odoonz/odoonz-addons",
