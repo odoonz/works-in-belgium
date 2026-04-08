@@ -7,17 +7,17 @@ posting.
 
 ### The Issue
 
-In the core Odoo `account` module, specifically in `account_move.py` around line 4994, there's code that synchronizes partner
+In the core Odoo `account` module, specifically in `account_move.py` around line 5641, there's code that synchronizes partner
 IDs on move lines with the invoice's commercial partner:
 
 ```python
-# From odoo/addons/account/models/account_move.py lines 4987-4994
+# From odoo/addons/account/models/account_move.py lines 5633-5641
 for invoice in to_post:
     # Fix inconsistencies that may occure if the OCR has been editing the invoice at the same time of a user. We force the
     # partner on the lines to be the same as the one on the move, because that's the only one the user can see/edit.
     wrong_lines = invoice.is_invoice() and invoice.line_ids.filtered(lambda aml:
         aml.partner_id != invoice.commercial_partner_id
-        and aml.display_type not in ('line_note', 'line_section')
+        and aml.display_type not in ('line_section', 'line_subsection', 'line_note')
     )
     if wrong_lines:
         wrong_lines.write({'partner_id': invoice.commercial_partner_id.id})
@@ -30,7 +30,7 @@ taxes on the invoice lines.
 ### The Solution
 
 The `account_tax_wtf` module intercepts the `write` method on `account.move.line` and adds a context flag
-`skip_tax_recompute=True` when only the `partner_id` is being changed. This prevents the automatic tax recalculation that would
+`skip_invoice_sync=True` when only the `partner_id` is being changed. This prevents the automatic tax recalculation that would
 otherwise overwrite manually configured taxes.
 
 ```python
@@ -52,7 +52,7 @@ invoice posting, preserving any manually edited taxes.
 
 ## Compatibility
 
-- Odoo 18.0
+- Odoo 19.0
 - Requires the standard `account` module
 
 ## Author
