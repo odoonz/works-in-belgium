@@ -10,6 +10,6 @@ class AccountMoveReversal(models.TransientModel):
 
     def _prepare_default_reversal(self, move):
         vals = super()._prepare_default_reversal(move)
-        if move.is_invoice(include_receipts=True) and not vals.get('invoice_payment_term_id'):           
+        if move.is_invoice(include_receipts=True) and not vals.get('invoice_payment_term_id'):
             vals['invoice_payment_term_id'] = move.invoice_payment_term_id.id
         return vals

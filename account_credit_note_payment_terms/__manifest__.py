@@ -8,7 +8,7 @@
     "version": "19.0.1.0.0",
     "license": "AGPL-3",
     "author": "MoaHub Ltd",
-    "website": "https://github.com/odoonz/odoonz-addons",
+    "website": "https://github.com/odoonz/works-in-belgium",
     "depends": ["account"],
     "installable": True,
 }
