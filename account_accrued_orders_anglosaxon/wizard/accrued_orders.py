@@ -1,8 +1,5 @@
 from odoo import api, fields, models
 
-PURCHASE_TYPES = ("grnb", "gbnr")
-SALE_TYPES = ("gdni", "gind")
-
 
 class AccountAccruedOrdersWizard(models.TransientModel):
     _inherit = "account.accrued.orders.wizard"
@@ -12,17 +9,29 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     )
 
     def _get_default_accrual_account(self):
-        company = self.env.company
         accrual_type = self.env.context.get("accrual_type")
-        active_model = self.env.context.get("active_model", "")
-        if accrual_type in PURCHASE_TYPES or active_model in (
-            "purchase.order",
-            "purchase.order.line",
-        ):
-            return company.accrued_purchase_stock_account_id
-        if accrual_type == "gdni":
-            return company.delivered_in_advance_account_id
-        return company.accrued_revenue_advance_account_id
+        dispatcher = {
+            "gdni": self._get_gdni_default_account,
+            "gind": self._get_gind_default_account,
+            "grnb": self._get_grnb_default_account,
+            "gbnr": self._get_gbnr_default_account,
+        }
+        handler = dispatcher.get(accrual_type)
+        if handler:
+            return handler()
+        return self.env["account.account"]
+
+    def _get_gdni_default_account(self):
+        return self.env.company.delivered_in_advance_account_id
+
+    def _get_gind_default_account(self):
+        return self.env.company.accrued_revenue_advance_account_id
+
+    def _get_grnb_default_account(self):
+        return self.env.company.accrued_purchase_stock_account_id
+
+    def _get_gbnr_default_account(self):
+        return self.env.company.accrued_purchase_stock_account_id
 
     @api.model
     def _get_product_expense_and_stock_var_accounts(self, product):
@@ -30,10 +39,8 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         account so that accrual entries do not disturb the inventory
         valuation balance maintained by stock moves.
 
-        grnb (Received Not Billed)  → purchase_in_advance_account_id
-        gbnr (Billed Not Received)  → purchase_in_advance_account_id
-        gdni (Delivered Not Invoiced) → uninvoiced_inventory_account_id
-        gind (Invoiced Not Delivered) → undelivered_inventory_account_id
+        Each accrual_type dispatches to its own method so the mapping
+        is explicit and individually overridable.
         """
         (
             expense_account,
@@ -43,20 +50,28 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         if not expense_account or not stock_var_account:
             return (expense_account, stock_var_account)
 
-        company = self.env.company
         accrual_type = self.env.context.get("accrual_type")
-        active_model = self.env.context.get("active_model", "")
-
-        if accrual_type in PURCHASE_TYPES or active_model in (
-            "purchase.order",
-            "purchase.order.line",
-        ):
-            override = company.purchase_in_advance_account_id
-        elif accrual_type == "gdni":
-            override = company.uninvoiced_inventory_account_id
-        else:
-            override = company.undelivered_inventory_account_id
-
-        if override:
-            return (expense_account, override)
+        dispatcher = {
+            "gdni": self._get_gdni_stock_var_account,
+            "gind": self._get_gind_stock_var_account,
+            "grnb": self._get_grnb_stock_var_account,
+            "gbnr": self._get_gbnr_stock_var_account,
+        }
+        handler = dispatcher.get(accrual_type)
+        if handler:
+            override = handler()
+            if override:
+                return (expense_account, override)
         return (expense_account, stock_var_account)
+
+    def _get_gdni_stock_var_account(self):
+        return self.env.company.uninvoiced_inventory_account_id
+
+    def _get_gind_stock_var_account(self):
+        return self.env.company.undelivered_inventory_account_id
+
+    def _get_grnb_stock_var_account(self):
+        return self.env.company.purchase_in_advance_account_id
+
+    def _get_gbnr_stock_var_account(self):
+        return self.env.company.purchase_in_advance_account_id
