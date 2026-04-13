@@ -1,5 +1,8 @@
 from odoo import api, fields, models
 
+PURCHASE_TYPES = ("grnb", "gbnr")
+SALE_TYPES = ("gdni", "gind")
+
 
 class AccountAccruedOrdersWizard(models.TransientModel):
     _inherit = "account.accrued.orders.wizard"
@@ -9,11 +12,14 @@ class AccountAccruedOrdersWizard(models.TransientModel):
     )
 
     def _get_default_accrual_account(self):
-        active_model = self.env.context.get("active_model", "")
         company = self.env.company
-        if active_model in ("purchase.order", "purchase.order.line"):
-            return company.accrued_purchase_stock_account_id
         accrual_type = self.env.context.get("accrual_type")
+        active_model = self.env.context.get("active_model", "")
+        if accrual_type in PURCHASE_TYPES or active_model in (
+            "purchase.order",
+            "purchase.order.line",
+        ):
+            return company.accrued_purchase_stock_account_id
         if accrual_type == "gdni":
             return company.delivered_in_advance_account_id
         return company.accrued_revenue_advance_account_id
@@ -24,9 +30,10 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         account so that accrual entries do not disturb the inventory
         valuation balance maintained by stock moves.
 
-        Purchase  → purchase_in_advance_account_id
-        Sale GIND → undelivered_inventory_account_id
-        Sale GDNI → uninvoiced_inventory_account_id
+        grnb (Received Not Billed)  → purchase_in_advance_account_id
+        gbnr (Billed Not Received)  → purchase_in_advance_account_id
+        gdni (Delivered Not Invoiced) → uninvoiced_inventory_account_id
+        gind (Invoiced Not Delivered) → undelivered_inventory_account_id
         """
         (
             expense_account,
@@ -37,11 +44,15 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             return (expense_account, stock_var_account)
 
         company = self.env.company
+        accrual_type = self.env.context.get("accrual_type")
         active_model = self.env.context.get("active_model", "")
 
-        if active_model in ("purchase.order", "purchase.order.line"):
+        if accrual_type in PURCHASE_TYPES or active_model in (
+            "purchase.order",
+            "purchase.order.line",
+        ):
             override = company.purchase_in_advance_account_id
-        elif self.env.context.get("accrual_type") == "gdni":
+        elif accrual_type == "gdni":
             override = company.uninvoiced_inventory_account_id
         else:
             override = company.undelivered_inventory_account_id

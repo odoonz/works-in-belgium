@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <!-- Pass accrual_type so the wizard can pick the right default accounts -->
+    <!-- Pass accrual_type so the wizard can pick the right default accounts.
+         Four scenarios:
+           gdni  – Sales: Goods Delivered Not Invoiced
+           gind  – Sales: Goods Invoiced Not Delivered
+           grnb  – Purchases: Goods Received Not Billed
+           gbnr  – Purchases: Goods Billed Not Received
+    -->
+
+    <!-- Sales -->
     <record
         id="sale_account_accountant.sale_order_line_accrual_to_bill_action"
         model="ir.actions.act_window"
@@ -20,6 +28,29 @@
             'search_default_last_365_days': 1,
             'search_default_groupby_customer': 1,
             'accrual_type': 'gind',
+        }</field>
+    </record>
+
+    <!-- Purchases -->
+    <record
+        id="purchase_accountant.purchase_order_line_accrual_bill_to_receive_action"
+        model="ir.actions.act_window"
+    >
+        <field name="context">{
+            'search_default_last_365_days': 1,
+            'search_default_groupby_vendor': 1,
+            'accrual_type': 'grnb',
+        }</field>
+    </record>
+
+    <record
+        id="purchase_accountant.purchase_order_line_accrual_prepaid_expenses_action"
+        model="ir.actions.act_window"
+    >
+        <field name="context">{
+            'search_default_last_365_days': 1,
+            'search_default_groupby_vendor': 1,
+            'accrual_type': 'gbnr',
         }</field>
     </record>
 </odoo>
