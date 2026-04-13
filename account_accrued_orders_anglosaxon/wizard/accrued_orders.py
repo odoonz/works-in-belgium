@@ -13,6 +13,9 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         company = self.env.company
         if active_model in ("purchase.order", "purchase.order.line"):
             return company.accrued_purchase_stock_account_id
+        accrual_type = self.env.context.get("accrual_type")
+        if accrual_type == "gdni":
+            return company.delivered_in_advance_account_id
         return company.accrued_revenue_advance_account_id
 
     @api.model
@@ -21,8 +24,9 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         account so that accrual entries do not disturb the inventory
         valuation balance maintained by stock moves.
 
-        Purchase side → purchase_in_advance_account_id
-        Sale side     → undelivered_inventory_account_id
+        Purchase  → purchase_in_advance_account_id
+        Sale GIND → undelivered_inventory_account_id
+        Sale GDNI → uninvoiced_inventory_account_id
         """
         (
             expense_account,
@@ -37,6 +41,8 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
         if active_model in ("purchase.order", "purchase.order.line"):
             override = company.purchase_in_advance_account_id
+        elif self.env.context.get("accrual_type") == "gdni":
+            override = company.uninvoiced_inventory_account_id
         else:
             override = company.undelivered_inventory_account_id
 

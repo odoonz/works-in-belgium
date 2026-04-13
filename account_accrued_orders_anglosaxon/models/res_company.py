@@ -30,8 +30,27 @@ class ResCompany(models.Model):
         string="Undelivered Inventory Account",
         check_company=True,
         help=(
-            "Replaces the stock variation account on sale accrual "
-            "perpetual entries (COGS in advance) so inventory "
-            "valuation is not disturbed."
+            "Replaces the stock variation account on GIND sale accrual "
+            "perpetual entries (COGS invoiced in advance of delivery) "
+            "so inventory valuation is not disturbed."
+        ),
+    )
+    delivered_in_advance_account_id = fields.Many2one(
+        "account.account",
+        string="Delivered in Advance Account",
+        check_company=True,
+        help=(
+            "Default counterpart for GDNI sale accruals "
+            "(Goods Delivered Not Invoiced)."
+        ),
+    )
+    uninvoiced_inventory_account_id = fields.Many2one(
+        "account.account",
+        string="Uninvoiced Inventory Account",
+        check_company=True,
+        help=(
+            "Replaces the stock variation account on GDNI sale accrual "
+            "perpetual entries (COGS for goods delivered but not yet "
+            "invoiced) so inventory valuation is not disturbed."
         ),
     )

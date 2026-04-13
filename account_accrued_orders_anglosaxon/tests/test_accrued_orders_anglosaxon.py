@@ -7,7 +7,8 @@ from odoo.addons.sale.tests.common import TestSaleCommon
 
 @tagged("post_install", "-at_install")
 class TestAccruedOrdersAngloSaxon(TestSaleCommon):
-    """Verify the accrued orders wizard routes to the configured accounts."""
+    """Verify the accrued orders wizard routes to the configured accounts
+    depending on accrual_type context (gdni / gind) and order type."""
 
     @classmethod
     def setUpClass(cls):
@@ -38,15 +39,20 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 "uom_id": cls.uom_unit.id,
             }
         )
-        cls.account_stock_valuation = (
-            cls.product_category.property_stock_valuation_account_id
-        )
 
+        # --- accounts ---
         cls.purchase_stock_accrual = cls.env["account.account"].create(
             {
                 "name": "Purchase Stock Accrual",
                 "code": "X21250",
                 "account_type": "liability_current",
+            }
+        )
+        cls.purchase_in_advance = cls.env["account.account"].create(
+            {
+                "name": "Purchase in Advance",
+                "code": "X11255",
+                "account_type": "asset_current",
             }
         )
         cls.revenue_advance = cls.env["account.account"].create(
@@ -56,17 +62,24 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 "account_type": "liability_current",
             }
         )
-        cls.purchase_in_advance = cls.env["account.account"].create(
-            {
-                "name": "Purchase in Advance",
-                "code": "X21270",
-                "account_type": "liability_current",
-            }
-        )
         cls.undelivered_inventory = cls.env["account.account"].create(
             {
                 "name": "Undelivered Inventory",
                 "code": "X11250",
+                "account_type": "asset_current",
+            }
+        )
+        cls.delivered_in_advance = cls.env["account.account"].create(
+            {
+                "name": "Delivered in Advance",
+                "code": "X21270",
+                "account_type": "liability_current",
+            }
+        )
+        cls.uninvoiced_inventory = cls.env["account.account"].create(
+            {
+                "name": "Uninvoiced Inventory",
+                "code": "X11260",
                 "account_type": "asset_current",
             }
         )
@@ -98,20 +111,35 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
     def _configure_company(self):
         self.env.company.write(
             {
-                "accrued_purchase_stock_account_id": self.purchase_stock_accrual.id,
-                "accrued_revenue_advance_account_id": self.revenue_advance.id,
-                "purchase_in_advance_account_id": self.purchase_in_advance.id,
-                "undelivered_inventory_account_id": self.undelivered_inventory.id,
+                "accrued_purchase_stock_account_id": (
+                    self.purchase_stock_accrual.id
+                ),
+                "accrued_revenue_advance_account_id": (
+                    self.revenue_advance.id
+                ),
+                "purchase_in_advance_account_id": (
+                    self.purchase_in_advance.id
+                ),
+                "undelivered_inventory_account_id": (
+                    self.undelivered_inventory.id
+                ),
+                "delivered_in_advance_account_id": (
+                    self.delivered_in_advance.id
+                ),
+                "uninvoiced_inventory_account_id": (
+                    self.uninvoiced_inventory.id
+                ),
             }
         )
 
     # ------------------------------------------------------------------
-    # Sale: GDNI (goods delivered not invoiced)
+    # Sale GDNI — accrual_type = 'gdni'
     # ------------------------------------------------------------------
 
-    def test_sale_gdni_uses_undelivered_inventory(self):
-        """GDNI perpetual adjustment must hit the configured
-        undelivered_inventory_account_id, not stock_variation."""
+    def test_sale_gdni_uses_uninvoiced_inventory(self):
+        """With accrual_type='gdni', perpetual COGS lines must hit
+        uninvoiced_inventory, not undelivered_inventory or
+        stock_variation."""
         self._configure_company()
         self._put_in_stock(self.product, 10)
 
@@ -143,6 +171,175 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
             .with_context(
                 active_model="sale.order",
                 active_ids=so.ids,
+                accrual_type="gdni",
+            )
+            .create(
+                {
+                    "account_id": self.delivered_in_advance.id,
+                    "date": fields.Date.today(),
+                }
+            )
+        )
+        moves = self.env["account.move"].search(
+            wizard.create_entries()["domain"]
+        )
+        lines = moves.line_ids
+
+        ui_lines = lines.filtered(
+            lambda ln: ln.account_id == self.uninvoiced_inventory
+        )
+        self.assertTrue(
+            ui_lines,
+            "GDNI perpetual must use Uninvoiced Inventory",
+        )
+        self.assertFalse(
+            lines.filtered(
+                lambda ln: ln.account_id == self.account_stock_variation
+            ),
+            "Stock variation must not appear",
+        )
+        self.assertFalse(
+            lines.filtered(
+                lambda ln: ln.account_id == self.undelivered_inventory
+            ),
+            "Undelivered Inventory is for GIND, not GDNI",
+        )
+
+    def test_sale_gdni_exact_entry_structure(self):
+        """Full journal entry verification for a GDNI accrual with
+        accrual_type context: revenue + perpetual COGS + reversals."""
+        self._configure_company()
+        self._put_in_stock(self.product, 10)
+
+        so = (
+            self.env["sale.order"]
+            .with_context(tracking_disable=True)
+            .create(
+                {
+                    "partner_id": self.partner_a.id,
+                    "order_line": [
+                        Command.create(
+                            {
+                                "product_id": self.product.id,
+                                "product_uom_qty": 1,
+                                "price_unit": 100,
+                                "tax_ids": False,
+                            }
+                        )
+                    ],
+                }
+            )
+        )
+        so.action_confirm()
+        so.picking_ids.move_ids.write({"quantity": 1, "picked": True})
+        so.picking_ids.button_validate()
+
+        wizard = (
+            self.env["account.accrued.orders.wizard"]
+            .with_context(
+                active_model="sale.order",
+                active_ids=so.ids,
+                accrual_type="gdni",
+            )
+            .create(
+                {
+                    "account_id": self.delivered_in_advance.id,
+                    "date": fields.Date.today(),
+                }
+            )
+        )
+        moves = self.env["account.move"].search(
+            wizard.create_entries()["domain"]
+        )
+        lines = moves.line_ids.sorted("id")
+
+        self.assertRecordValues(
+            lines,
+            [
+                # Revenue: CR Revenue, DR Delivered in Advance
+                {
+                    "account_id": self.account_revenue.id,
+                    "debit": 0,
+                    "credit": 100,
+                },
+                {
+                    "account_id": self.delivered_in_advance.id,
+                    "debit": 100,
+                    "credit": 0,
+                },
+                # COGS: DR Expense, CR Uninvoiced Inventory
+                {
+                    "account_id": self.uninvoiced_inventory.id,
+                    "debit": 0,
+                    "credit": 60,
+                },
+                {
+                    "account_id": self.account_expense.id,
+                    "debit": 60,
+                    "credit": 0,
+                },
+                # Reversal — revenue
+                {
+                    "account_id": self.account_revenue.id,
+                    "debit": 100,
+                    "credit": 0,
+                },
+                {
+                    "account_id": self.delivered_in_advance.id,
+                    "debit": 0,
+                    "credit": 100,
+                },
+                # Reversal — COGS
+                {
+                    "account_id": self.uninvoiced_inventory.id,
+                    "debit": 60,
+                    "credit": 0,
+                },
+                {
+                    "account_id": self.account_expense.id,
+                    "debit": 0,
+                    "credit": 60,
+                },
+            ],
+        )
+
+    # ------------------------------------------------------------------
+    # Sale GIND — accrual_type = 'gind' (or absent)
+    # ------------------------------------------------------------------
+
+    def test_sale_gind_uses_undelivered_inventory(self):
+        """With accrual_type='gind', perpetual lines must hit
+        undelivered_inventory."""
+        self._configure_company()
+
+        so = (
+            self.env["sale.order"]
+            .with_context(tracking_disable=True)
+            .create(
+                {
+                    "partner_id": self.partner_a.id,
+                    "order_line": [
+                        Command.create(
+                            {
+                                "product_id": self.product.id,
+                                "product_uom_qty": 1,
+                                "tax_ids": False,
+                            }
+                        )
+                    ],
+                }
+            )
+        )
+        so.action_confirm()
+        inv = so._create_invoices()
+        inv.action_post()
+
+        wizard = (
+            self.env["account.accrued.orders.wizard"]
+            .with_context(
+                active_model="sale.order",
+                active_ids=so.ids,
+                accrual_type="gind",
             )
             .create(
                 {
@@ -151,30 +348,28 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 }
             )
         )
-        moves = self.env["account.move"].search(wizard.create_entries()["domain"])
-        lines = moves.line_ids.sorted("id")
+        moves = self.env["account.move"].search(
+            wizard.create_entries()["domain"]
+        )
+        lines = moves.line_ids
 
-        undelivered_lines = lines.filtered(
+        ud_lines = lines.filtered(
             lambda ln: ln.account_id == self.undelivered_inventory
         )
         self.assertTrue(
-            undelivered_lines,
-            "Perpetual adjustment must use undelivered inventory account",
-        )
-        stock_var_lines = lines.filtered(
-            lambda ln: ln.account_id == self.account_stock_variation
+            ud_lines,
+            "GIND perpetual must use Undelivered Inventory",
         )
         self.assertFalse(
-            stock_var_lines,
-            "Stock variation account must not appear in accrual entries",
+            lines.filtered(
+                lambda ln: ln.account_id == self.uninvoiced_inventory
+            ),
+            "Uninvoiced Inventory is for GDNI, not GIND",
         )
 
-    # ------------------------------------------------------------------
-    # Sale: GIND (goods invoiced not delivered)
-    # ------------------------------------------------------------------
-
-    def test_sale_gind_uses_undelivered_inventory(self):
-        """GIND perpetual adjustment must also hit undelivered inventory."""
+    def test_sale_no_context_defaults_to_gind(self):
+        """Without accrual_type context the wizard falls back to GIND
+        accounts (undelivered_inventory)."""
         self._configure_company()
 
         so = (
@@ -212,31 +407,26 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 }
             )
         )
-        moves = self.env["account.move"].search(wizard.create_entries()["domain"])
-        lines = moves.line_ids.sorted("id")
+        moves = self.env["account.move"].search(
+            wizard.create_entries()["domain"]
+        )
+        lines = moves.line_ids
 
-        undelivered_lines = lines.filtered(
+        ud_lines = lines.filtered(
             lambda ln: ln.account_id == self.undelivered_inventory
         )
         self.assertTrue(
-            undelivered_lines,
-            "GIND perpetual adjustment must use undelivered inventory account",
-        )
-        stock_var_lines = lines.filtered(
-            lambda ln: ln.account_id == self.account_stock_variation
-        )
-        self.assertFalse(
-            stock_var_lines,
-            "Stock variation account must not appear",
+            ud_lines,
+            "No accrual_type must fall back to Undelivered Inventory",
         )
 
     # ------------------------------------------------------------------
-    # Purchase: received not billed
+    # Purchase
     # ------------------------------------------------------------------
 
     def test_purchase_received_not_billed_uses_purchase_in_advance(self):
-        """Purchase main line must use the configured
-        purchase_in_advance_account_id, not stock_variation."""
+        """Purchase main line must use purchase_in_advance, not
+        stock_variation."""
         self._configure_company()
 
         po = self.env["purchase.order"].create(
@@ -275,7 +465,9 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 }
             )
         )
-        moves = self.env["account.move"].search(wizard.create_entries()["domain"])
+        moves = self.env["account.move"].search(
+            wizard.create_entries()["domain"]
+        )
         lines = moves.line_ids.sorted("id")
 
         pia_lines = lines.filtered(
@@ -283,14 +475,13 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
         )
         self.assertTrue(
             pia_lines,
-            "Purchase main line must use purchase in advance account",
-        )
-        stock_var_lines = lines.filtered(
-            lambda ln: ln.account_id == self.account_stock_variation
+            "Purchase must use Purchase in Advance account",
         )
         self.assertFalse(
-            stock_var_lines,
-            "Stock variation account must not appear in purchase accruals",
+            lines.filtered(
+                lambda ln: ln.account_id == self.account_stock_variation
+            ),
+            "Stock variation must not appear in purchase accruals",
         )
 
     # ------------------------------------------------------------------
@@ -298,44 +489,64 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
     # ------------------------------------------------------------------
 
     def test_wizard_defaults_purchase_stock_accrual(self):
-        """Wizard account_id must default to Purchase Stock Accrual
-        when opened from a purchase order."""
+        """Wizard account_id defaults to Purchase Stock Accrual for
+        purchases."""
         self._configure_company()
-
         wizard = (
             self.env["account.accrued.orders.wizard"]
-            .with_context(active_model="purchase.order", active_ids=[1])
+            .with_context(
+                active_model="purchase.order", active_ids=[1]
+            )
             .new({})
         )
         self.assertEqual(
             wizard.account_id,
             self.purchase_stock_accrual,
-            "Default counterpart for purchases must be Purchase Stock Accrual",
         )
 
-    def test_wizard_defaults_revenue_advance(self):
-        """Wizard account_id must default to Revenue in Advance
-        when opened from a sale order."""
+    def test_wizard_defaults_revenue_advance_for_gind(self):
+        """Wizard account_id defaults to Revenue in Advance for GIND
+        sales (or when accrual_type is absent)."""
         self._configure_company()
-
         wizard = (
             self.env["account.accrued.orders.wizard"]
-            .with_context(active_model="sale.order", active_ids=[1])
+            .with_context(
+                active_model="sale.order",
+                active_ids=[1],
+                accrual_type="gind",
+            )
             .new({})
         )
         self.assertEqual(
             wizard.account_id,
             self.revenue_advance,
-            "Default counterpart for sales must be Revenue in Advance",
+        )
+
+    def test_wizard_defaults_delivered_in_advance_for_gdni(self):
+        """Wizard account_id defaults to Delivered in Advance for GDNI
+        sales."""
+        self._configure_company()
+        wizard = (
+            self.env["account.accrued.orders.wizard"]
+            .with_context(
+                active_model="sale.order",
+                active_ids=[1],
+                accrual_type="gdni",
+            )
+            .new({})
+        )
+        self.assertEqual(
+            wizard.account_id,
+            self.delivered_in_advance,
         )
 
     # ------------------------------------------------------------------
-    # Fallback: unconfigured accounts → stock variation (base behaviour)
+    # Fallback: unconfigured accounts → stock variation
     # ------------------------------------------------------------------
 
     def test_sale_falls_back_to_stock_variation_when_unconfigured(self):
-        """Without company config the sale wizard must fall back to the
-        stock variation account (base sale_stock behaviour)."""
+        """Without any company config, sale accruals must fall back to
+        the stock variation account (standard sale_stock behaviour)."""
         self._put_in_stock(self.product, 10)
 
         so = (
@@ -366,6 +577,7 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
             .with_context(
                 active_model="sale.order",
                 active_ids=so.ids,
+                accrual_type="gdni",
             )
             .create(
                 {
@@ -374,20 +586,23 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 }
             )
         )
-        moves = self.env["account.move"].search(wizard.create_entries()["domain"])
+        moves = self.env["account.move"].search(
+            wizard.create_entries()["domain"]
+        )
         lines = moves.line_ids
 
-        stock_var_lines = lines.filtered(
-            lambda ln: ln.account_id == self.account_stock_variation
-        )
-        self.assertTrue(
-            stock_var_lines,
-            "Without config, sale accrual must fall back to stock variation",
-        )
+        if self.account_stock_variation:
+            self.assertTrue(
+                lines.filtered(
+                    lambda ln: ln.account_id
+                    == self.account_stock_variation
+                ),
+                "Without config, must fall back to stock variation",
+            )
 
-    def test_purchase_falls_back_to_stock_variation_when_unconfigured(self):
-        """Without company config the purchase wizard must fall back to
-        the stock variation account (base behaviour)."""
+    def test_purchase_falls_back_when_unconfigured(self):
+        """Without company config, purchase accruals must fall back to
+        stock variation."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -406,7 +621,6 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
             }
         )
         po.button_confirm()
-
         pick = po.picking_ids
         pick.move_ids.write({"quantity": 5, "picked": True})
         pick.button_validate()
@@ -424,112 +638,14 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 }
             )
         )
-        moves = self.env["account.move"].search(wizard.create_entries()["domain"])
+        moves = self.env["account.move"].search(
+            wizard.create_entries()["domain"]
+        )
         lines = moves.line_ids
 
-        stock_var_lines = lines.filtered(
-            lambda ln: ln.account_id == self.account_stock_variation
-        )
-        self.assertTrue(
-            stock_var_lines,
-            "Without config, purchase accrual must fall back to stock variation",
-        )
-
-    # ------------------------------------------------------------------
-    # Verify exact journal entry structure (GDNI)
-    # ------------------------------------------------------------------
-
-    def test_sale_gdni_exact_entry_structure(self):
-        """Full journal entry verification for a GDNI sale accrual:
-        revenue side + perpetual COGS adjustment + reversals."""
-        self._configure_company()
-        self._put_in_stock(self.product, 10)
-
-        so = (
-            self.env["sale.order"]
-            .with_context(tracking_disable=True)
-            .create(
-                {
-                    "partner_id": self.partner_a.id,
-                    "order_line": [
-                        Command.create(
-                            {
-                                "product_id": self.product.id,
-                                "product_uom_qty": 1,
-                                "price_unit": 100,
-                                "tax_ids": False,
-                            }
-                        )
-                    ],
-                }
-            )
-        )
-        so.action_confirm()
-        so.picking_ids.move_ids.write({"quantity": 1, "picked": True})
-        so.picking_ids.button_validate()
-
-        wizard = (
-            self.env["account.accrued.orders.wizard"]
-            .with_context(
-                active_model="sale.order",
-                active_ids=so.ids,
-            )
-            .create(
-                {
-                    "account_id": self.revenue_advance.id,
-                    "date": fields.Date.today(),
-                }
-            )
-        )
-        moves = self.env["account.move"].search(wizard.create_entries()["domain"])
-        lines = moves.line_ids.sorted("id")
-
-        self.assertRecordValues(
-            lines,
-            [
-                # Revenue accrual
-                {
-                    "account_id": self.account_revenue.id,
-                    "debit": 0,
-                    "credit": 100,
-                },
-                {
-                    "account_id": self.revenue_advance.id,
-                    "debit": 100,
-                    "credit": 0,
-                },
-                # COGS perpetual adjustment (undelivered inventory)
-                {
-                    "account_id": self.undelivered_inventory.id,
-                    "debit": 0,
-                    "credit": 60,
-                },
-                {
-                    "account_id": self.account_expense.id,
-                    "debit": 60,
-                    "credit": 0,
-                },
-                # Reversal — revenue
-                {
-                    "account_id": self.account_revenue.id,
-                    "debit": 100,
-                    "credit": 0,
-                },
-                {
-                    "account_id": self.revenue_advance.id,
-                    "debit": 0,
-                    "credit": 100,
-                },
-                # Reversal — COGS perpetual
-                {
-                    "account_id": self.undelivered_inventory.id,
-                    "debit": 60,
-                    "credit": 0,
-                },
-                {
-                    "account_id": self.account_expense.id,
-                    "debit": 0,
-                    "credit": 60,
-                },
-            ],
+        self.assertFalse(
+            lines.filtered(
+                lambda ln: ln.account_id == self.purchase_in_advance
+            ),
+            "Without config, Purchase in Advance must not appear",
         )

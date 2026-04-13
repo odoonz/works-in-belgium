@@ -6,9 +6,13 @@
     "website": "https://github.com/odoonz/works-in-belgium",
     "category": "Accounting",
     "license": "LGPL-3",
-    "depends": ["sale_stock", "purchase_stock"],
+    "depends": [
+        "sale_account_accountant",
+        "purchase_accountant",
+    ],
     "data": [
         "views/res_config_settings_views.xml",
+        "views/sale_order_line_views.xml",
     ],
     "installable": True,
 }

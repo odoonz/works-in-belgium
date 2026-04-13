@@ -20,3 +20,11 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.undelivered_inventory_account_id",
         readonly=False,
     )
+    delivered_in_advance_account_id = fields.Many2one(
+        related="company_id.delivered_in_advance_account_id",
+        readonly=False,
+    )
+    uninvoiced_inventory_account_id = fields.Many2one(
+        related="company_id.uninvoiced_inventory_account_id",
+        readonly=False,
+    )
