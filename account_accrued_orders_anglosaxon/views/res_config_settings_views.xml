@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field
+            name="name"
+        >res.config.settings.view.form.inherit.accrued.orders.anglosaxon</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="stock_account.res_config_settings_view_form" />
+        <field name="arch" type="xml">
+            <block name="valuation_setting_container" position="after">
+                <block
+                    title="Accrued Orders"
+                    name="accrued_orders_anglosaxon_container"
+                >
+                    <setting
+                        id="accrued_orders_sale_gind"
+                        string="GIND — Invoiced Not Delivered"
+                        help="Accounts for sale accruals where goods have been invoiced but not yet delivered."
+                    >
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label
+                                    for="accrued_revenue_advance_account_id"
+                                    class="col-lg-4 o_light_label"
+                                />
+                                <field
+                                    name="accrued_revenue_advance_account_id"
+                                    class="oe_inline"
+                                    options="{'no_create': True}"
+                                />
+                            </div>
+                            <div class="row mt8">
+                                <label
+                                    for="undelivered_inventory_account_id"
+                                    class="col-lg-4 o_light_label"
+                                />
+                                <field
+                                    name="undelivered_inventory_account_id"
+                                    class="oe_inline"
+                                    options="{'no_create': True}"
+                                />
+                            </div>
+                        </div>
+                    </setting>
+                    <setting
+                        id="accrued_orders_sale_gdni"
+                        string="GDNI — Delivered Not Invoiced"
+                        help="Accounts for sale accruals where goods have been delivered but not yet invoiced."
+                    >
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label
+                                    for="delivered_in_advance_account_id"
+                                    class="col-lg-4 o_light_label"
+                                />
+                                <field
+                                    name="delivered_in_advance_account_id"
+                                    class="oe_inline"
+                                    options="{'no_create': True}"
+                                />
+                            </div>
+                            <div class="row mt8">
+                                <label
+                                    for="uninvoiced_inventory_account_id"
+                                    class="col-lg-4 o_light_label"
+                                />
+                                <field
+                                    name="uninvoiced_inventory_account_id"
+                                    class="oe_inline"
+                                    options="{'no_create': True}"
+                                />
+                            </div>
+                        </div>
+                    </setting>
+                    <setting
+                        id="accrued_orders_purchase_accounts"
+                        string="Purchase Accrual Accounts"
+                        help="Accounts used by the accrued orders wizard for purchase orders with perpetual valuation."
+                    >
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label
+                                    for="accrued_purchase_stock_account_id"
+                                    class="col-lg-4 o_light_label"
+                                />
+                                <field
+                                    name="accrued_purchase_stock_account_id"
+                                    class="oe_inline"
+                                    options="{'no_create': True}"
+                                />
+                            </div>
+                            <div class="row mt8">
+                                <label
+                                    for="purchase_in_advance_account_id"
+                                    class="col-lg-4 o_light_label"
+                                />
+                                <field
+                                    name="purchase_in_advance_account_id"
+                                    class="oe_inline"
+                                    options="{'no_create': True}"
+                                />
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </block>
+        </field>
+    </record>
+</odoo>

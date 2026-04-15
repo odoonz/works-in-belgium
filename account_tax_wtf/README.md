@@ -2,13 +2,14 @@
 
 ## Problem Description
 
-This module addresses a critical issue in Odoo's accounting system where manually edited taxes get overwritten during invoice
-posting.
+This module addresses a critical issue in Odoo's accounting system where manually edited
+taxes get overwritten during invoice posting.
 
 ### The Issue
 
-In the core Odoo `account` module, specifically in `account_move.py` around line 5641, there's code that synchronizes partner
-IDs on move lines with the invoice's commercial partner:
+In the core Odoo `account` module, specifically in `account_move.py` around line 4994,
+there's code that synchronizes partner IDs on move lines with the invoice's commercial
+partner:
 
 ```python
 # From odoo/addons/account/models/account_move.py lines 5633-5641
@@ -23,15 +24,17 @@ for invoice in to_post:
         wrong_lines.write({'partner_id': invoice.commercial_partner_id.id})
 ```
 
-This code is intended to fix inconsistencies that might occur during concurrent editing, but it has an unintended side effect:
-**changing the `partner_id` on move lines triggers a complete tax recalculation**, which overwrites any manually set or edited
-taxes on the invoice lines.
+This code is intended to fix inconsistencies that might occur during concurrent editing,
+but it has an unintended side effect: **changing the `partner_id` on move lines triggers
+a complete tax recalculation**, which overwrites any manually set or edited taxes on the
+invoice lines.
 
 ### The Solution
 
-The `account_tax_wtf` module intercepts the `write` method on `account.move.line` and adds a context flag
-`skip_invoice_sync=True` when only the `partner_id` is being changed. This prevents the automatic tax recalculation that would
-otherwise overwrite manually configured taxes.
+The `account_tax_wtf` module intercepts the `write` method on `account.move.line` and
+adds a context flag `skip_tax_recompute=True` when only the `partner_id` is being
+changed. This prevents the automatic tax recalculation that would otherwise overwrite
+manually configured taxes.
 
 ```python
 # From models/account_move_line.py
@@ -43,12 +46,14 @@ def write(self, vals):
 
 ## Installation
 
-This module depends on the `account` module and will automatically install when added to your Odoo addons path.
+This module depends on the `account` module and will automatically install when added to
+your Odoo addons path.
 
 ## Usage
 
-The module works transparently - once installed, it will prevent tax recalculation when Odoo synchronizes partner IDs during
-invoice posting, preserving any manually edited taxes.
+The module works transparently - once installed, it will prevent tax recalculation when
+Odoo synchronizes partner IDs during invoice posting, preserving any manually edited
+taxes.
 
 ## Compatibility
 
