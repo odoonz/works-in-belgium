@@ -44,7 +44,7 @@ def name_search(self, name="", domain=None, operator="ilike", limit=100):
     else:
         move_type_accounts = {
             "out": ["income"],
-            "in": ["expense", "asset_fixed"],
+            "in": ["expense", "expense_direct_cost", "asset_fixed"],
         }
         allowed_account_types = move_type_accounts.get(move_type.split("_")[0])
         type_domain = (

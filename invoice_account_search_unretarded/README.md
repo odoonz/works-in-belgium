@@ -34,11 +34,14 @@ the new `account.account.name_search`:
   }
   ```
 
-  Anything not in that list (Cost of Revenue / `expense_direct_cost`, liabilities,
-  current assets, off-balance, etc.) is silently filtered out of the autocomplete
-  dropdown regardless of what the view, the `search_default_*` context keys, or any
-  inheriting module tries to do. The only escape hatch that still works is the "Search
-  more…" dialog, which goes through the search view and not through `name_search`.
+  Anything not in that list (liabilities, current assets, off-balance, etc.) is silently
+  filtered out of the autocomplete dropdown regardless of what the view, the
+  `search_default_*` context keys, or any inheriting module tries to do.
+
+  This module additionally adds `expense_direct_cost` (Cost of Revenue / COGS) to the
+  `in` mapping so that COGS accounts surface in the dropdown on vendor bills and
+  refunds. The only escape hatch that still works is the "Search more…" dialog, which
+  goes through the search view and not through `name_search`.
 
 The net effect is that:
 
@@ -47,10 +50,10 @@ The net effect is that:
   monkey-patching `name_search`.
 
 The PR was approved and merged in two days flat with no apparent consideration of the
-legitimate cases it breaks: anyone with an `expense_direct_cost` account who codes
-vendor bills against it, anyone who knows their chart of accounts by code rather than by
-name, and any downstream module that previously relied on the `Domain.AND` combine to
-add account types to the dropdown. See the discussion on
+legitimate cases it breaks: anyone with a Cost of Revenue (`expense_direct_cost`)
+account who codes vendor bills against it, anyone who knows their chart of accounts by
+code rather than by name, and any downstream module that previously relied on the
+`Domain.AND` combine to add account types to the dropdown. See the discussion on
 [odoo/odoo#257850](https://github.com/odoo/odoo/pull/257850) for the full context.
 
 This module restores the previous behaviour by **monkey-patching**
