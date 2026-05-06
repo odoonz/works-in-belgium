@@ -7,8 +7,6 @@
     "category": "Accounting",
     "license": "LGPL-3",
     "depends": [
-        "sale",
-        "purchase",
         "sale_account_accountant",
         "purchase_accountant",
     ],
