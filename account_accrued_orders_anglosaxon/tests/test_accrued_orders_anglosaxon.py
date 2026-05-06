@@ -48,13 +48,6 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 "account_type": "liability_current",
             }
         )
-        cls.purchase_in_advance = cls.env["account.account"].create(
-            {
-                "name": "Purchase in Advance",
-                "code": "X11255",
-                "account_type": "asset_current",
-            }
-        )
         cls.revenue_advance = cls.env["account.account"].create(
             {
                 "name": "Revenue in Advance",
@@ -116,9 +109,6 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 ),
                 "accrued_revenue_advance_account_id": (
                     self.revenue_advance.id
-                ),
-                "purchase_in_advance_account_id": (
-                    self.purchase_in_advance.id
                 ),
                 "undelivered_inventory_account_id": (
                     self.undelivered_inventory.id
@@ -424,9 +414,9 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
     # Purchase
     # ------------------------------------------------------------------
 
-    def test_purchase_received_not_billed_uses_purchase_in_advance(self):
-        """Purchase main line must use purchase_in_advance, not
-        stock_variation."""
+    def test_purchase_received_not_billed_uses_stock_variation(self):
+        """Purchase perpetual lines must use the standard stock variation
+        account (no override for purchases)."""
         self._configure_company()
 
         po = self.env["purchase.order"].create(
@@ -470,19 +460,14 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
         )
         lines = moves.line_ids.sorted("id")
 
-        pia_lines = lines.filtered(
-            lambda ln: ln.account_id == self.purchase_in_advance
-        )
-        self.assertTrue(
-            pia_lines,
-            "Purchase must use Purchase in Advance account",
-        )
-        self.assertFalse(
-            lines.filtered(
+        if self.account_stock_variation:
+            sv_lines = lines.filtered(
                 lambda ln: ln.account_id == self.account_stock_variation
-            ),
-            "Stock variation must not appear in purchase accruals",
-        )
+            )
+            self.assertTrue(
+                sv_lines,
+                "Purchase must use stock variation account",
+            )
 
     # ------------------------------------------------------------------
     # Default account_id on wizard
@@ -600,9 +585,9 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
                 "Without config, must fall back to stock variation",
             )
 
-    def test_purchase_falls_back_when_unconfigured(self):
-        """Without company config, purchase accruals must fall back to
-        stock variation."""
+    def test_purchase_falls_back_to_stock_variation_when_unconfigured(self):
+        """Without company config, purchase accruals must use
+        stock variation (standard behaviour)."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -643,9 +628,10 @@ class TestAccruedOrdersAngloSaxon(TestSaleCommon):
         )
         lines = moves.line_ids
 
-        self.assertFalse(
-            lines.filtered(
-                lambda ln: ln.account_id == self.purchase_in_advance
-            ),
-            "Without config, Purchase in Advance must not appear",
-        )
+        if self.account_stock_variation:
+            self.assertTrue(
+                lines.filtered(
+                    lambda ln: ln.account_id == self.account_stock_variation
+                ),
+                "Without config, must fall back to stock variation",
+            )
