@@ -114,6 +114,13 @@ account and routes perpetual adjustment lines to the correct account.
 If the accounts are not configured, the wizard falls back to standard
 Odoo behaviour.
 
+TODO
+====
+
+* Consider removing ``purchase_in_advance_account_id`` in favour of the
+  standard ``stock_variation_account`` for purchase accruals (GRNB/GBNR)
+  in the next migration.
+
 Credits
 =======
 
