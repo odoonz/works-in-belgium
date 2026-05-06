@@ -56,3 +56,9 @@ class AccountAccruedOrdersWizard(models.TransientModel):
 
     def _get_gind_stock_var_account(self):
         return self.env.company.undelivered_inventory_account_id
+
+    def _get_grnb_stock_var_account(self):
+        return self.env.company.purchase_in_advance_account_id
+
+    def _get_gbnr_stock_var_account(self):
+        return self.env.company.purchase_in_advance_account_id

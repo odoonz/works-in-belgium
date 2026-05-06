@@ -16,6 +16,15 @@ class ResCompany(models.Model):
         check_company=True,
         help="Default counterpart for sale order accruals (Revenue in Advance).",
     )
+    purchase_in_advance_account_id = fields.Many2one(
+        "account.account",
+        string="Purchase in Advance Account",
+        check_company=True,
+        help=(
+            "Replaces the stock variation account on purchase accrual "
+            "perpetual entries so inventory valuation is not disturbed."
+        ),
+    )
     undelivered_inventory_account_id = fields.Many2one(
         "account.account",
         string="Undelivered Inventory Account",
