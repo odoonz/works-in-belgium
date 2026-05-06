@@ -8,6 +8,8 @@
            gbnr  – Purchases: Goods Billed Not Received
     -->
 
+    <!-- ── accrual_type context on existing enterprise actions ──────── -->
+
     <!-- Sales -->
     <record
         id="sale_account_accountant.sale_order_line_accrual_to_bill_action"
@@ -52,5 +54,63 @@
             'search_default_groupby_vendor': 1,
             'accrual_type': 'gbnr',
         }</field>
+    </record>
+
+    <!-- ── Sale menus under To Invoice ─────────────────────────────── -->
+
+    <menuitem
+        id="menu_sale_accrual_invoices_to_issue"
+        name="Invoices To Be Issued"
+        parent="sale.menu_sale_invoicing"
+        action="sale_account_accountant.sale_order_line_accrual_to_bill_action"
+        groups="sales_team.group_sale_salesman"
+        sequence="30"
+    />
+    <menuitem
+        id="menu_sale_accrual_invoiced_not_delivered"
+        name="Invoiced Not Delivered"
+        parent="sale.menu_sale_invoicing"
+        action="sale_account_accountant.sale_order_line_accrual_deferred_revenues_action"
+        groups="sales_team.group_sale_salesman"
+        sequence="40"
+    />
+
+    <!-- ── Purchase "To Bill" menu ─────────────────────────────────── -->
+
+    <menuitem
+        id="menu_purchase_to_bill"
+        name="To Bill"
+        parent="purchase.menu_purchase_root"
+        groups="purchase.group_purchase_user"
+        sequence="3"
+    />
+    <menuitem
+        id="menu_purchase_accrual_bill_to_receive"
+        name="Bill To Receive"
+        parent="menu_purchase_to_bill"
+        action="purchase_accountant.purchase_order_line_accrual_bill_to_receive_action"
+        groups="purchase.group_purchase_user"
+        sequence="10"
+    />
+    <menuitem
+        id="menu_purchase_accrual_billed_not_received"
+        name="Billed Not Received"
+        parent="menu_purchase_to_bill"
+        action="purchase_accountant.purchase_order_line_accrual_prepaid_expenses_action"
+        groups="purchase.group_purchase_user"
+        sequence="20"
+    />
+
+    <!-- ── Restrict the wizard Create Entry button ─────────────────── -->
+
+    <record id="view_accrued_orders_wizard_groups" model="ir.ui.view">
+        <field name="name">account.accrued.orders.wizard.groups</field>
+        <field name="model">account.accrued.orders.wizard</field>
+        <field name="inherit_id" ref="account.view_account_accrued_orders_wizard" />
+        <field name="arch" type="xml">
+            <button name="create_entries" position="attributes">
+                <attribute name="groups">account.group_account_user</attribute>
+            </button>
+        </field>
     </record>
 </odoo>
